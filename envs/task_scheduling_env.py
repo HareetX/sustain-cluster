@@ -7,7 +7,7 @@ from gymnasium import spaces
 from rewards.base_reward import BaseReward
 from torch.utils.tensorboard import SummaryWriter  # if not already imported
 from data.network_cost.network_delay import get_transmission_delay
-from rl_components.task import Task 
+from rl_components.task import Task
 
 # Define default aggregated observation dimension - this will depend on your aggregation
 # For simple average/sum of task features + global features:
@@ -25,10 +25,10 @@ class TaskSchedulingEnv(gym.Env):
 
     RL agents interact with this class.
     """
-    def __init__(self, cluster_manager, start_time, end_time, 
+    def __init__(self, cluster_manager, start_time, end_time,
                  reward_fn: BaseReward, writer: SummaryWriter = None,
                  sim_config: dict = None, initial_seed_for_resets=None): # Add sim_config
-        
+
         super().__init__()
         self.cluster_manager = cluster_manager
         self.logger = getattr(self.cluster_manager, "logger", None)
@@ -36,7 +36,7 @@ class TaskSchedulingEnv(gym.Env):
         self.end_time = end_time
         self.time_step = pd.Timedelta(minutes=15)
         self.current_time = self.start_time
-        self.reward_fn = reward_fn 
+        self.reward_fn = reward_fn
         self.writer = writer
 
         self.pending_tasks = []
@@ -53,7 +53,7 @@ class TaskSchedulingEnv(gym.Env):
         self.base_seed = initial_seed_for_resets if initial_seed_for_resets is not None else random.randint(0, 1_000_000)
         self.current_episode_count = 0 # Track episodes within this env instance
 
-        
+
         # --- Read single_action_mode and aggregation_method from sim_config ---
         if sim_config is None:
             # Fallback if sim_config not passed, though it should be
@@ -70,7 +70,7 @@ class TaskSchedulingEnv(gym.Env):
 
         if self.logger:
             self.logger.info(f"TaskSchedulingEnv initialized with single_action_mode: {self.single_action_mode}, aggregation: {self.aggregation_method}, disable_defer_action: {self.disable_defer_action}")
-        
+
         print(f"TaskSchedulingEnv initialized with single_action_mode: {self.single_action_mode}, aggregation: {self.aggregation_method}, disable_defer_action: {self.disable_defer_action}")
 
         # --- Define Observation and Action Spaces ---
@@ -95,7 +95,7 @@ class TaskSchedulingEnv(gym.Env):
                 self.action_space = spaces.Discrete(self.num_dcs + 1)
                 self.agent_output_act_dim = self.num_dcs + 1
                 if self.logger: self.logger.info(f"Single action mode, Defer Enabled: Action dim = {self.num_dcs + 1} (0=defer, 1..N=DCs)")
-                
+
             if self.logger: self.logger.info(f"Single action mode: Obs dim = {self.obs_dim_aggregated}, Action dim = {self.num_dcs + 1}")
         else:
             # For multi-task mode, obs is a list of vectors. The Gym space technically describes one vector.
@@ -180,8 +180,8 @@ class TaskSchedulingEnv(gym.Env):
             return self._aggregate_task_observations(per_task_obs_list, self.current_tasks)
         else:
             return per_task_obs_list # Returns a list of np.arrays
-    
-    
+
+
     def _generate_per_task_obs_list(self):
         obs_list = []
 
@@ -216,10 +216,10 @@ class TaskSchedulingEnv(gym.Env):
                 task.duration,
                 time_to_deadline
             ]
-            
+
             full_obs_vector = time_features + task_features + dc_state_features
             obs_list.append(np.array(full_obs_vector, dtype=np.float32))
-            
+
         return obs_list
 
 
@@ -233,14 +233,14 @@ class TaskSchedulingEnv(gym.Env):
         else:
             # If RLlib passes a seed (e.g., for evaluation), use that.
             current_reset_seed = seed
-        
+
         self.current_episode_count += 1
         seed = current_reset_seed
         super().reset(seed=seed) # Gymnasium expects options, but we don't use them yet
         random.seed(seed) # Set random seed for reproducibility
         self.current_time = self.start_time
         self.cluster_manager.reset(seed=seed) # Pass seed to cluster manager
-        
+
         # print(f"Resetting environment with seed {seed} at time {self.current_time}")
 
         self.deferred_tasks.clear()
@@ -299,7 +299,7 @@ class TaskSchedulingEnv(gym.Env):
                         task.temporarily_deferred = True
                         if self.logger:
                             self.logger.info(f"[{self.current_time}] Task {task.job_name} (batch) deferred.")
-                            
+
                     else: # Assign all to the chosen DC
                         dest_dc_chosen_by_agent = dc_list_values[single_action_taken - 1]
                         task.dest_dc_id = dest_dc_chosen_by_agent.dc_id
@@ -311,7 +311,7 @@ class TaskSchedulingEnv(gym.Env):
                         arrival_ts = self.current_time + pd.to_timedelta(delay_s, unit='s')
                         dest_dc_name = next(name for name, dc_obj in self.cluster_manager.datacenters.items() if dc_obj.dc_id == task.dest_dc_id)
                         self.in_transit_tasks.append((arrival_ts, task, dest_dc_name))
-                        
+
                         if self.logger:
                             self.logger.info(f"[{self.current_time}] Task {task.job_name} (batch) routed to DC{task.dest_dc_id}, delay={delay_s:.1f}s.")
         else: # Multi-action mode (original logic)
@@ -328,7 +328,7 @@ class TaskSchedulingEnv(gym.Env):
                 else:
                     # Agent outputs 0 (defer) or 1 to N (DCs) for this task
                     action_for_task = action_for_task
-            
+
                 # ... (existing per-task action processing logic for defer/assign with delay) ...
                 if self.current_time > task.sla_deadline:
                     origin_dc_obj = next(dc for dc in dc_list_values if dc.dc_id == task.origin_dc_id)
@@ -384,7 +384,7 @@ class TaskSchedulingEnv(gym.Env):
             "transmission_cost_total_usd" : results["transmission_cost_total_usd"],
         }
         return obs_next, reward, done, truncated, info
-    
+
 
     def _load_new_tasks(self):
         """Load tasks for the current time step, including previously deferred ones."""
